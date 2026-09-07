@@ -160,6 +160,40 @@ void main() {
     await loaded.ad!.dispose();
     await adapter.dispose();
   });
+
+  test('auction uses a debug estimate when AdMob revenue is zero', () async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(tp.TradplusSdk.channel, (call) async {
+          if (call.method == 'interstitial_load') {
+            scheduleMicrotask(
+              () => tp.TPListenerManager.tpMethodCall(
+                'interstitial_loaded',
+                <String, dynamic>{
+                  'adUnitID': 'debug-auction-unit',
+                  'adInfo': <String, dynamic>{'ecpm': '3.0'},
+                },
+              ),
+            );
+          }
+          return null;
+        });
+    double? receivedAdmobPrice;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_adapterChannel, (call) async {
+          receivedAdmobPrice = call.arguments['admobPrice'] as double;
+          return false;
+        });
+
+    final adapter = FlutterBoomPdfAdTradplusAdapter();
+    final loaded = await adapter.load(_request(adUnitId: 'debug-auction-unit'));
+    final candidate = loaded.ad! as core.AdAuctionCandidate;
+
+    await candidate.winsAgainst(competitorRevenueMicros: 0);
+
+    expect(<double>[0.123, 1.24, 12.5, 126], contains(receivedAdmobPrice));
+    await loaded.ad!.dispose();
+    await adapter.dispose();
+  });
 }
 
 core.AdLoadRequest _request({required String adUnitId}) {

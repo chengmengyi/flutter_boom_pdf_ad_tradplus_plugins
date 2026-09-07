@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
@@ -526,6 +527,14 @@ class _TradplusLoadedAd
   bool _disposed = false;
   bool _paidEmitted = false;
 
+  static const _debugRevenueMicrosCandidates = <double>[
+    123000,
+    1240000,
+    12500000,
+    126000000,
+  ];
+  static final _debugRandom = Random();
+
   bool get isDisposed => _disposed;
 
   @override
@@ -570,8 +579,15 @@ class _TradplusLoadedAd
     if (defaultTargetPlatform != TargetPlatform.android) {
       return Future<bool?>.value(null);
     }
+    var resolvedRevenueMicros = competitorRevenueMicros;
+    if (kDebugMode && resolvedRevenueMicros == 0) {
+      resolvedRevenueMicros =
+          _debugRevenueMicrosCandidates[_debugRandom.nextInt(
+            _debugRevenueMicrosCandidates.length,
+          )];
+    }
     return FlutterBoomPdfAdTradplusPlugins.isTradplusWinner(
-      admobPrice: competitorRevenueMicros / 1000000,
+      admobPrice: resolvedRevenueMicros / 1000000,
       tpAdInfo: _adInfo,
     );
   }
