@@ -52,6 +52,9 @@ android {
         // The adapter supplies the runtime core; individual mediation network
         // adapters remain an app-level choice.
         implementation("com.tradplusad:tradplus:15.4.0.1")
+        // TP Exchange/Adx parses bidding payloads with Gson but its POM does
+        // not declare Gson transitively. Supply it here for every host App.
+        implementation("com.google.code.gson:gson:2.10.1")
         testImplementation("org.jetbrains.kotlin:kotlin-test")
         testImplementation("org.mockito:mockito-core:5.0.0")
     }

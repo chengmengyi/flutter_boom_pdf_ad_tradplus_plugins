@@ -3,6 +3,10 @@
 TradPlus adapter for `flutter_boom_pdf_ad_core_plugins`, backed by
 `tradplus_sdk: ^1.2.8`.
 
+The Android adapter supplies Gson `2.10.1`, which TP Exchange/Adx needs for
+bidding payload parsing but does not declare transitively. The host App does
+not need to add Gson separately.
+
 ## Registration and initialization
 
 ```dart
