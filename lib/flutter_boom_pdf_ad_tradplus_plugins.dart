@@ -26,6 +26,43 @@ class FlutterBoomPdfAdTradplusPlugins {
 
   Future<String?> getPlatformVersion() =>
       FlutterBoomPdfAdTradplusPluginsPlatform.instance.getPlatformVersion();
+
+  static Future<bool?> isTradplusWinner({
+    required double admobPrice,
+    required Map<dynamic, dynamic> tpAdInfo,
+  }) async {
+    if (kDebugMode) {
+      debugPrint('isTradplusWinner --->admobPrice=$admobPrice');
+    }
+    try {
+      final tpWins = await FlutterBoomPdfAdTradplusPluginsPlatform.instance
+          .isTradplusWinner(
+            admobPrice: admobPrice,
+            tpAdInfo: tpAdInfo.map(
+              (key, value) => MapEntry(key.toString(), value),
+            ),
+          );
+      if (kDebugMode) {
+        final winner = tpWins == null
+            ? 'unknown'
+            : tpWins
+            ? 'tradplus'
+            : 'admob';
+        debugPrint(
+          'isTradplusWinner --->admobPrice=$admobPrice--->winner=$winner',
+        );
+      }
+      return tpWins;
+    } catch (error) {
+      if (kDebugMode) {
+        debugPrint(
+          'isTradplusWinner fail --->admobPrice=$admobPrice'
+          '--->reason=$error',
+        );
+      }
+      rethrow;
+    }
+  }
 }
 
 /// TradPlus-specific option keys accepted by Core's `configureNetwork` API.
@@ -472,7 +509,8 @@ class FlutterBoomPdfAdTradplusAdapter extends core.FlutterBoomPdfAdAdapter {
   }
 }
 
-class _TradplusLoadedAd implements core.LoadedNetworkAd {
+class _TradplusLoadedAd
+    implements core.LoadedNetworkAd, core.AdAuctionCandidate {
   _TradplusLoadedAd({
     required this.slot,
     required this.request,
@@ -526,6 +564,17 @@ class _TradplusLoadedAd implements core.LoadedNetworkAd {
 
   @override
   Stream<core.AdNetworkEvent> get events => _events.stream;
+
+  @override
+  Future<bool?> winsAgainst({required double competitorRevenueMicros}) {
+    if (defaultTargetPlatform != TargetPlatform.android) {
+      return Future<bool?>.value(null);
+    }
+    return FlutterBoomPdfAdTradplusPlugins.isTradplusWinner(
+      admobPrice: competitorRevenueMicros / 1000000,
+      tpAdInfo: _adInfo,
+    );
+  }
 
   @override
   Widget? buildWidget() {

@@ -28,4 +28,11 @@ abstract class FlutterBoomPdfAdTradplusPluginsPlatform
   Future<String?> getPlatformVersion() {
     throw UnimplementedError('platformVersion() has not been implemented.');
   }
+
+  Future<bool?> isTradplusWinner({
+    required double admobPrice,
+    required Map<String, Object?> tpAdInfo,
+  }) {
+    throw UnimplementedError('isTradplusWinner() has not been implemented.');
+  }
 }

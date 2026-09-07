@@ -4,7 +4,10 @@ import 'package:flutter_boom_pdf_ad_core_plugins/flutter_boom_pdf_ad_core_plugin
     as core;
 import 'package:flutter_boom_pdf_ad_tradplus_plugins/flutter_boom_pdf_ad_tradplus_plugins.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/services.dart';
 import 'package:tradplus_sdk/tradplus_sdk.dart' as tp;
+
+const _adapterChannel = MethodChannel('flutter_boom_pdf_ad_tradplus_plugins');
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -12,11 +15,15 @@ void main() {
   setUp(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(tp.TradplusSdk.channel, null);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_adapterChannel, null);
   });
 
   tearDown(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(tp.TradplusSdk.channel, null);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_adapterChannel, null);
   });
 
   test('adapter supports every Core ad type', () {
@@ -111,6 +118,45 @@ void main() {
     );
 
     await subscription.cancel();
+    await loaded.ad!.dispose();
+    await adapter.dispose();
+  });
+
+  test('auction converts AdMob micros to revenue before native call', () async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(tp.TradplusSdk.channel, (call) async {
+          if (call.method == 'interstitial_load') {
+            scheduleMicrotask(
+              () => tp.TPListenerManager.tpMethodCall(
+                'interstitial_loaded',
+                <String, dynamic>{
+                  'adUnitID': 'auction-unit',
+                  'adInfo': <String, dynamic>{
+                    'ecpm': '3.0',
+                    'adNetworkId': '9',
+                  },
+                },
+              ),
+            );
+          }
+          return null;
+        });
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_adapterChannel, (call) async {
+          expect(call.method, 'isTradplusWinner');
+          expect(call.arguments['admobPrice'], 2.5);
+          expect(call.arguments['tpAdInfo']['ecpm'], '3.0');
+          return true;
+        });
+
+    final adapter = FlutterBoomPdfAdTradplusAdapter();
+    final loaded = await adapter.load(_request(adUnitId: 'auction-unit'));
+    final candidate = loaded.ad! as core.AdAuctionCandidate;
+
+    expect(
+      await candidate.winsAgainst(competitorRevenueMicros: 2500000),
+      isTrue,
+    );
     await loaded.ad!.dispose();
     await adapter.dispose();
   });

@@ -38,17 +38,18 @@ Configure a placement with `adPlat: 'tradplus'`. Core's existing
 `takeCachedAdWidget` APIs remain unchanged.
 
 ```dart
-FlutterPdfAdPlugins.instance.updatePlacementConfig(
-  'home_interstitial',
-  [
-    AdInfoBean(
-      adId: 'YOUR_TRADPLUS_AD_UNIT_ID',
-      adPlat: 'tradplus',
-      adType: 'int',
-      sort: 100,
-      userGroup: [0],
-    ),
-  ],
+FlutterPdfAdPlugins.instance.updateConfigs<String>(
+  {
+    'home_interstitial': [
+      AdInfoBean(
+        adId: 'YOUR_TRADPLUS_AD_UNIT_ID',
+        adPlat: 'tradplus',
+        adType: 'int',
+        sort: 100,
+        userGroup: [0],
+      ),
+    ],
+  },
 );
 
 await FlutterPdfAdPlugins.instance.loadPlacement('home_interstitial');

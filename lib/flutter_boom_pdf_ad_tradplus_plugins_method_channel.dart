@@ -19,4 +19,15 @@ class MethodChannelFlutterBoomPdfAdTradplusPlugins
     );
     return version;
   }
+
+  @override
+  Future<bool?> isTradplusWinner({
+    required double admobPrice,
+    required Map<String, Object?> tpAdInfo,
+  }) {
+    return methodChannel.invokeMethod<bool>(
+      'isTradplusWinner',
+      <String, Object?>{'admobPrice': admobPrice, 'tpAdInfo': tpAdInfo},
+    );
+  }
 }
