@@ -35,4 +35,10 @@ abstract class FlutterBoomPdfAdTradplusPluginsPlatform
   }) {
     throw UnimplementedError('isTradplusWinner() has not been implemented.');
   }
+
+  Future<double?> getTradplusEstimatedPrice({required String adUnitId}) {
+    throw UnimplementedError(
+      'getTradplusEstimatedPrice() has not been implemented.',
+    );
+  }
 }

@@ -1,5 +1,6 @@
 package com.boom.pdf.ad.tradplus.flutter_boom_pdf_ad_tradplus_plugins
 
+import com.tp.compareprice.ComparePriceUtil.recursiveComparePrice
 import com.tradplus.ads.base.bean.TPAdInfo
 import com.tradplus.ads.mgr.TPOutcome
 import io.flutter.embedding.engine.plugins.FlutterPlugin
@@ -30,7 +31,21 @@ class FlutterBoomPdfAdTradplusPluginsPlugin :
         when (call.method) {
             "getPlatformVersion" -> result.success("Android ${android.os.Build.VERSION.RELEASE}")
             "isTradplusWinner" -> compareRevenue(call, result)
+            "getTradplusEstimatedPrice" -> getEstimatedPrice(call, result)
             else -> result.notImplemented()
+        }
+    }
+
+    private fun getEstimatedPrice(call: MethodCall, result: Result) {
+        val adUnitId = call.argument<String>("adUnitId")
+        if (adUnitId.isNullOrBlank()) {
+            result.error("invalid_ad_unit_id", "adUnitId is required", null)
+            return
+        }
+        runCatching {
+            recursiveComparePrice(adUnitId)
+        }.onSuccess(result::success).onFailure {
+            result.error("tradplus_price_query_failed", it.message, null)
         }
     }
 

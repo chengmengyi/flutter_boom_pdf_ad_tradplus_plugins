@@ -30,4 +30,12 @@ class MethodChannelFlutterBoomPdfAdTradplusPlugins
       <String, Object?>{'admobPrice': admobPrice, 'tpAdInfo': tpAdInfo},
     );
   }
+
+  @override
+  Future<double?> getTradplusEstimatedPrice({required String adUnitId}) {
+    return methodChannel.invokeMethod<double>(
+      'getTradplusEstimatedPrice',
+      <String, Object?>{'adUnitId': adUnitId},
+    );
+  }
 }

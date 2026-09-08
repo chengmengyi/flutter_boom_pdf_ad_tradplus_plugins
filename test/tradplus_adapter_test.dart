@@ -125,6 +125,7 @@ void main() {
   test('auction converts AdMob micros to revenue before native call', () async {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(tp.TradplusSdk.channel, (call) async {
+          if (call.method == 'interstitial_ready') return true;
           if (call.method == 'interstitial_load') {
             scheduleMicrotask(
               () => tp.TPListenerManager.tpMethodCall(
@@ -152,16 +153,62 @@ void main() {
     final adapter = FlutterBoomPdfAdTradplusAdapter();
     final loaded = await adapter.load(_request(adUnitId: 'auction-unit'));
     final candidate = loaded.ad! as core.AdAuctionCandidate;
+    final competitor = core.AdInfoBean(
+      adId: 'admob-unit',
+      adPlat: 'admob',
+      adType: 'int',
+    );
+    final callbacks = <String>[];
 
     expect(
-      await candidate.winsAgainst(competitorRevenueMicros: 2500000),
+      await candidate.winsAgainst(
+        competitorRevenueMicros: 2500000,
+        competitorInfo: competitor,
+        onBidStart: (info) => callbacks.add('start:${info.price}'),
+        onBidOver: (info, tpWins) => callbacks.add('over:$tpWins'),
+      ),
       isTrue,
     );
+    expect(competitor.price, 2500000);
+    expect(callbacks, <String>['start:2500000.0', 'over:true']);
     await loaded.ad!.dispose();
     await adapter.dispose();
   });
 
-  test('auction uses a debug estimate when AdMob revenue is zero', () async {
+  test('TradPlus estimated USD eCPM is converted to micros', () async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(tp.TradplusSdk.channel, (call) async {
+          if (call.method == 'interstitial_ready') return true;
+          if (call.method == 'interstitial_load') {
+            scheduleMicrotask(
+              () => tp.TPListenerManager.tpMethodCall(
+                'interstitial_loaded',
+                <String, dynamic>{
+                  'adUnitID': 'price-unit',
+                  'adInfo': <String, dynamic>{'ecpm': '5.0'},
+                },
+              ),
+            );
+          }
+          return null;
+        });
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_adapterChannel, (call) async {
+          expect(call.method, 'getTradplusEstimatedPrice');
+          expect(call.arguments['adUnitId'], 'price-unit');
+          return 6.25;
+        });
+
+    final adapter = FlutterBoomPdfAdTradplusAdapter();
+    final loaded = await adapter.load(_request(adUnitId: 'price-unit'));
+    final candidate = loaded.ad! as core.AdEstimatedRevenueCandidate;
+
+    expect(await candidate.getEstimatedRevenueMicros(), 6250000);
+    await loaded.ad!.dispose();
+    await adapter.dispose();
+  });
+
+  test('auction forwards zero revenue without applying a fallback', () async {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(tp.TradplusSdk.channel, (call) async {
           if (call.method == 'interstitial_load') {
@@ -190,7 +237,7 @@ void main() {
 
     await candidate.winsAgainst(competitorRevenueMicros: 0);
 
-    expect(<double>[0.123, 1.24, 12.5, 126], contains(receivedAdmobPrice));
+    expect(receivedAdmobPrice, 0);
     await loaded.ad!.dispose();
     await adapter.dispose();
   });

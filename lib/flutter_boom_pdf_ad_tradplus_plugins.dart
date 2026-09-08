@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
@@ -28,17 +27,20 @@ class FlutterBoomPdfAdTradplusPlugins {
   Future<String?> getPlatformVersion() =>
       FlutterBoomPdfAdTradplusPluginsPlatform.instance.getPlatformVersion();
 
+  /// [admobPrice] is expressed in micros and is converted to USD eCPM before
+  /// crossing the platform channel.
   static Future<bool?> isTradplusWinner({
     required double admobPrice,
     required Map<dynamic, dynamic> tpAdInfo,
   }) async {
+    final platformAdmobPrice = admobPrice / 1000000;
     if (kDebugMode) {
-      debugPrint('isTradplusWinner --->admobPrice=$admobPrice');
+      debugPrint('isTradplusWinner --->admobPrice=$platformAdmobPrice');
     }
     try {
       final tpWins = await FlutterBoomPdfAdTradplusPluginsPlatform.instance
           .isTradplusWinner(
-            admobPrice: admobPrice,
+            admobPrice: platformAdmobPrice,
             tpAdInfo: tpAdInfo.map(
               (key, value) => MapEntry(key.toString(), value),
             ),
@@ -50,19 +52,26 @@ class FlutterBoomPdfAdTradplusPlugins {
             ? 'tradplus'
             : 'admob';
         debugPrint(
-          'isTradplusWinner --->admobPrice=$admobPrice--->winner=$winner',
+          'isTradplusWinner --->admobPrice=$platformAdmobPrice'
+          '--->winner=$winner',
         );
       }
       return tpWins;
     } catch (error) {
       if (kDebugMode) {
         debugPrint(
-          'isTradplusWinner fail --->admobPrice=$admobPrice'
+          'isTradplusWinner fail --->admobPrice=$platformAdmobPrice'
           '--->reason=$error',
         );
       }
       rethrow;
     }
+  }
+
+  /// Returns the loaded TradPlus placement's estimated USD eCPM.
+  static Future<double?> getTradplusEstimatedPrice(String adUnitId) {
+    return FlutterBoomPdfAdTradplusPluginsPlatform.instance
+        .getTradplusEstimatedPrice(adUnitId: adUnitId);
   }
 }
 
@@ -511,7 +520,10 @@ class FlutterBoomPdfAdTradplusAdapter extends core.FlutterBoomPdfAdAdapter {
 }
 
 class _TradplusLoadedAd
-    implements core.LoadedNetworkAd, core.AdAuctionCandidate {
+    implements
+        core.LoadedNetworkAd,
+        core.AdAuctionCandidate,
+        core.AdEstimatedRevenueCandidate {
   _TradplusLoadedAd({
     required this.slot,
     required this.request,
@@ -526,14 +538,6 @@ class _TradplusLoadedAd
   core.OnUserEarnedRewardCallback? _rewardCallback;
   bool _disposed = false;
   bool _paidEmitted = false;
-
-  static const _debugRevenueMicrosCandidates = <double>[
-    123000,
-    1240000,
-    12500000,
-    126000000,
-  ];
-  static final _debugRandom = Random();
 
   bool get isDisposed => _disposed;
 
@@ -575,21 +579,44 @@ class _TradplusLoadedAd
   Stream<core.AdNetworkEvent> get events => _events.stream;
 
   @override
-  Future<bool?> winsAgainst({required double competitorRevenueMicros}) {
+  Future<bool?> winsAgainst({
+    required double competitorRevenueMicros,
+    core.AdInfoBean? competitorInfo,
+    void Function(core.AdInfoBean info)? onBidStart,
+    void Function(core.AdInfoBean info, bool tpWins)? onBidOver,
+  }) async {
     if (defaultTargetPlatform != TargetPlatform.android) {
-      return Future<bool?>.value(null);
+      return null;
     }
-    var resolvedRevenueMicros = competitorRevenueMicros;
-    if (kDebugMode && resolvedRevenueMicros == 0) {
-      resolvedRevenueMicros =
-          _debugRevenueMicrosCandidates[_debugRandom.nextInt(
-            _debugRevenueMicrosCandidates.length,
-          )];
+    if (competitorInfo != null) {
+      competitorInfo.price = competitorRevenueMicros;
+      onBidStart?.call(competitorInfo);
     }
-    return FlutterBoomPdfAdTradplusPlugins.isTradplusWinner(
-      admobPrice: resolvedRevenueMicros / 1000000,
-      tpAdInfo: _adInfo,
-    );
+    try {
+      final tpWins = await FlutterBoomPdfAdTradplusPlugins.isTradplusWinner(
+        admobPrice: competitorRevenueMicros,
+        tpAdInfo: _adInfo,
+      );
+      if (competitorInfo != null) {
+        onBidOver?.call(competitorInfo, tpWins ?? false);
+      }
+      return tpWins;
+    } catch (_) {
+      if (competitorInfo != null) onBidOver?.call(competitorInfo, false);
+      rethrow;
+    }
+  }
+
+  @override
+  Future<double?> getEstimatedRevenueMicros() async {
+    if (defaultTargetPlatform != TargetPlatform.android) return null;
+    if (!await _isReady()) return null;
+    final price =
+        await FlutterBoomPdfAdTradplusPlugins.getTradplusEstimatedPrice(
+          slot.adUnitId,
+        );
+    if (price == null || !price.isFinite || price < 0) return null;
+    return price * 1000000;
   }
 
   @override
