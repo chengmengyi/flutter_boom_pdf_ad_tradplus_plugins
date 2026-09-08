@@ -144,10 +144,16 @@ void main() {
         });
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_adapterChannel, (call) async {
-          expect(call.method, 'isTradplusWinner');
-          expect(call.arguments['admobPrice'], 2.5);
-          expect(call.arguments['tpAdInfo']['ecpm'], '3.0');
-          return true;
+          switch (call.method) {
+            case 'getTradplusEstimatedPrice':
+              expect(call.arguments['adUnitId'], 'auction-unit');
+              return 3.25;
+            case 'isTradplusWinner':
+              expect(call.arguments['admobPrice'], 2.5);
+              expect(call.arguments['tpAdInfo']['ecpm'], '3.0');
+              return true;
+          }
+          return null;
         });
 
     final adapter = FlutterBoomPdfAdTradplusAdapter();
@@ -158,19 +164,31 @@ void main() {
       adPlat: 'admob',
       adType: 'int',
     );
+    final tradplusInfo = core.AdInfoBean(
+      adId: 'auction-unit',
+      adPlat: 'tradplus',
+      adType: 'int',
+    );
     final callbacks = <String>[];
 
     expect(
       await candidate.winsAgainst(
         competitorRevenueMicros: 2500000,
         competitorInfo: competitor,
-        onBidStart: (info) => callbacks.add('start:${info.price}'),
-        onBidOver: (info, tpWins) => callbacks.add('over:$tpWins'),
+        candidateInfo: tradplusInfo,
+        onBidStart: (admobInfo, tpInfo) =>
+            callbacks.add('start:${admobInfo.price}:${tpInfo.price}'),
+        onBidOver: (winnerInfo) =>
+            callbacks.add('over:${winnerInfo.adPlat}:${winnerInfo.price}'),
       ),
       isTrue,
     );
     expect(competitor.price, 2500000);
-    expect(callbacks, <String>['start:2500000.0', 'over:true']);
+    expect(tradplusInfo.price, 3250000);
+    expect(callbacks, <String>[
+      'start:2500000.0:3250000.0',
+      'over:tradplus:3250000.0',
+    ]);
     await loaded.ad!.dispose();
     await adapter.dispose();
   });
@@ -211,6 +229,7 @@ void main() {
   test('auction forwards zero revenue without applying a fallback', () async {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(tp.TradplusSdk.channel, (call) async {
+          if (call.method == 'interstitial_ready') return true;
           if (call.method == 'interstitial_load') {
             scheduleMicrotask(
               () => tp.TPListenerManager.tpMethodCall(
@@ -227,6 +246,7 @@ void main() {
     double? receivedAdmobPrice;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_adapterChannel, (call) async {
+          if (call.method == 'getTradplusEstimatedPrice') return 4.0;
           receivedAdmobPrice = call.arguments['admobPrice'] as double;
           return false;
         });
@@ -234,10 +254,34 @@ void main() {
     final adapter = FlutterBoomPdfAdTradplusAdapter();
     final loaded = await adapter.load(_request(adUnitId: 'debug-auction-unit'));
     final candidate = loaded.ad! as core.AdAuctionCandidate;
+    final admobInfo = core.AdInfoBean(
+      adId: 'admob-unit',
+      adPlat: 'admob',
+      adType: 'int',
+    );
+    final tradplusInfo = core.AdInfoBean(
+      adId: 'debug-auction-unit',
+      adPlat: 'tradplus',
+      adType: 'int',
+    );
+    core.AdInfoBean? callbackWinner;
+    var didStart = false;
 
-    await candidate.winsAgainst(competitorRevenueMicros: 0);
+    await candidate.winsAgainst(
+      competitorRevenueMicros: 0,
+      competitorInfo: admobInfo,
+      candidateInfo: tradplusInfo,
+      onBidStart: (admob, tradplus) {
+        didStart = true;
+        expect(admob.price, 0);
+        expect(tradplus.price, 4000000);
+      },
+      onBidOver: (winnerInfo) => callbackWinner = winnerInfo,
+    );
 
     expect(receivedAdmobPrice, 0);
+    expect(didStart, isTrue);
+    expect(callbackWinner, same(admobInfo));
     await loaded.ad!.dispose();
     await adapter.dispose();
   });

@@ -538,6 +538,7 @@ class _TradplusLoadedAd
   core.OnUserEarnedRewardCallback? _rewardCallback;
   bool _disposed = false;
   bool _paidEmitted = false;
+  Future<double?>? _estimatedRevenueMicrosFuture;
 
   bool get isDisposed => _disposed;
 
@@ -582,33 +583,46 @@ class _TradplusLoadedAd
   Future<bool?> winsAgainst({
     required double competitorRevenueMicros,
     core.AdInfoBean? competitorInfo,
-    void Function(core.AdInfoBean info)? onBidStart,
-    void Function(core.AdInfoBean info, bool tpWins)? onBidOver,
+    core.AdInfoBean? candidateInfo,
+    void Function(core.AdInfoBean admobInfo, core.AdInfoBean tradplusInfo)?
+    onBidStart,
+    void Function(core.AdInfoBean winnerInfo)? onBidOver,
   }) async {
     if (defaultTargetPlatform != TargetPlatform.android) {
       return null;
     }
+    final tradplusInfo = candidateInfo ?? request.info;
     if (competitorInfo != null) {
       competitorInfo.price = competitorRevenueMicros;
-      onBidStart?.call(competitorInfo);
+      try {
+        tradplusInfo.price = await getEstimatedRevenueMicros() ?? 0;
+      } catch (_) {
+        tradplusInfo.price = 0;
+      }
+      onBidStart?.call(competitorInfo, tradplusInfo);
     }
     try {
       final tpWins = await FlutterBoomPdfAdTradplusPlugins.isTradplusWinner(
         admobPrice: competitorRevenueMicros,
         tpAdInfo: _adInfo,
       );
-      if (competitorInfo != null) {
-        onBidOver?.call(competitorInfo, tpWins ?? false);
+      if (tpWins == true) {
+        onBidOver?.call(tradplusInfo);
+      } else if (competitorInfo != null) {
+        onBidOver?.call(competitorInfo);
       }
       return tpWins;
     } catch (_) {
-      if (competitorInfo != null) onBidOver?.call(competitorInfo, false);
+      if (competitorInfo != null) onBidOver?.call(competitorInfo);
       rethrow;
     }
   }
 
   @override
-  Future<double?> getEstimatedRevenueMicros() async {
+  Future<double?> getEstimatedRevenueMicros() =>
+      _estimatedRevenueMicrosFuture ??= _queryEstimatedRevenueMicros();
+
+  Future<double?> _queryEstimatedRevenueMicros() async {
     if (defaultTargetPlatform != TargetPlatform.android) return null;
     if (!await _isReady()) return null;
     final price =
