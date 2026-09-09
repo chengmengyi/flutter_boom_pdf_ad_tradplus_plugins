@@ -122,7 +122,7 @@ void main() {
     await adapter.dispose();
   });
 
-  test('auction converts AdMob micros to revenue before native call', () async {
+  test('auction forwards normalized AdMob price to native call', () async {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(tp.TradplusSdk.channel, (call) async {
           if (call.method == 'interstitial_ready') return true;
@@ -173,7 +173,7 @@ void main() {
 
     expect(
       await candidate.winsAgainst(
-        competitorRevenueMicros: 2500000,
+        competitorRevenueMicros: 2.5,
         competitorInfo: competitor,
         candidateInfo: tradplusInfo,
         onBidStart: (admobInfo, tpInfo) =>
@@ -183,17 +183,14 @@ void main() {
       ),
       isTrue,
     );
-    expect(competitor.price, 2500000);
-    expect(tradplusInfo.price, 3250000);
-    expect(callbacks, <String>[
-      'start:2500000.0:3250000.0',
-      'over:tradplus:3250000.0',
-    ]);
+    expect(competitor.price, 2.5);
+    expect(tradplusInfo.price, 3.25);
+    expect(callbacks, <String>['start:2.5:3.25', 'over:tradplus:3.25']);
     await loaded.ad!.dispose();
     await adapter.dispose();
   });
 
-  test('TradPlus estimated USD eCPM is converted to micros', () async {
+  test('TradPlus estimated USD eCPM keeps its original value', () async {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(tp.TradplusSdk.channel, (call) async {
           if (call.method == 'interstitial_ready') return true;
@@ -221,7 +218,7 @@ void main() {
     final loaded = await adapter.load(_request(adUnitId: 'price-unit'));
     final candidate = loaded.ad! as core.AdEstimatedRevenueCandidate;
 
-    expect(await candidate.getEstimatedRevenueMicros(), 6250000);
+    expect(await candidate.getEstimatedRevenueMicros(), 6.25);
     await loaded.ad!.dispose();
     await adapter.dispose();
   });
@@ -274,7 +271,7 @@ void main() {
       onBidStart: (admob, tradplus) {
         didStart = true;
         expect(admob.price, 0);
-        expect(tradplus.price, 4000000);
+        expect(tradplus.price, 4);
       },
       onBidOver: (winnerInfo) => callbackWinner = winnerInfo,
     );

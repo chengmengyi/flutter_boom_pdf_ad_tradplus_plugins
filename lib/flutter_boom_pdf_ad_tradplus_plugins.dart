@@ -27,13 +27,13 @@ class FlutterBoomPdfAdTradplusPlugins {
   Future<String?> getPlatformVersion() =>
       FlutterBoomPdfAdTradplusPluginsPlatform.instance.getPlatformVersion();
 
-  /// [admobPrice] is expressed in micros and is converted to USD eCPM before
-  /// crossing the platform channel.
+  /// [admobPrice] has already been normalized by the AdMob adapter and is
+  /// forwarded unchanged to `TPOutcome.isTPW`.
   static Future<bool?> isTradplusWinner({
     required double admobPrice,
     required Map<dynamic, dynamic> tpAdInfo,
   }) async {
-    final platformAdmobPrice = admobPrice / 1000000;
+    final platformAdmobPrice = admobPrice;
     if (kDebugMode) {
       debugPrint('isTradplusWinner --->admobPrice=$platformAdmobPrice');
     }
@@ -630,7 +630,7 @@ class _TradplusLoadedAd
           slot.adUnitId,
         );
     if (price == null || !price.isFinite || price < 0) return null;
-    return price * 1000000;
+    return price;
   }
 
   @override
