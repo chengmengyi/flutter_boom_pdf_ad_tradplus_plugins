@@ -184,44 +184,50 @@ void main() {
       isTrue,
     );
     expect(competitor.price, 2.5);
-    expect(tradplusInfo.price, 3.25);
-    expect(callbacks, <String>['start:2.5:3.25', 'over:tradplus:3.25']);
+    expect(tradplusInfo.price, closeTo(0.00325, 0.000000001));
+    expect(callbacks, <String>['start:2.5:0.00325', 'over:tradplus:0.00325']);
     await loaded.ad!.dispose();
     await adapter.dispose();
   });
 
-  test('TradPlus estimated USD eCPM keeps its original value', () async {
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(tp.TradplusSdk.channel, (call) async {
-          if (call.method == 'interstitial_ready') return true;
-          if (call.method == 'interstitial_load') {
-            scheduleMicrotask(
-              () => tp.TPListenerManager.tpMethodCall(
-                'interstitial_loaded',
-                <String, dynamic>{
-                  'adUnitID': 'price-unit',
-                  'adInfo': <String, dynamic>{'ecpm': '5.0'},
-                },
-              ),
-            );
-          }
-          return null;
-        });
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(_adapterChannel, (call) async {
-          expect(call.method, 'getTradplusEstimatedPrice');
-          expect(call.arguments['adUnitId'], 'price-unit');
-          return 6.25;
-        });
+  test(
+    'TradPlus estimated eCPM is converted to per-impression price',
+    () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(tp.TradplusSdk.channel, (call) async {
+            if (call.method == 'interstitial_ready') return true;
+            if (call.method == 'interstitial_load') {
+              scheduleMicrotask(
+                () => tp.TPListenerManager.tpMethodCall(
+                  'interstitial_loaded',
+                  <String, dynamic>{
+                    'adUnitID': 'price-unit',
+                    'adInfo': <String, dynamic>{'ecpm': '5.0'},
+                  },
+                ),
+              );
+            }
+            return null;
+          });
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(_adapterChannel, (call) async {
+            expect(call.method, 'getTradplusEstimatedPrice');
+            expect(call.arguments['adUnitId'], 'price-unit');
+            return 6.25;
+          });
 
-    final adapter = FlutterBoomPdfAdTradplusAdapter();
-    final loaded = await adapter.load(_request(adUnitId: 'price-unit'));
-    final candidate = loaded.ad! as core.AdEstimatedRevenueCandidate;
+      final adapter = FlutterBoomPdfAdTradplusAdapter();
+      final loaded = await adapter.load(_request(adUnitId: 'price-unit'));
+      final candidate = loaded.ad! as core.AdEstimatedRevenueCandidate;
 
-    expect(await candidate.getEstimatedRevenueMicros(), 6.25);
-    await loaded.ad!.dispose();
-    await adapter.dispose();
-  });
+      expect(
+        await candidate.getEstimatedRevenueMicros(),
+        closeTo(0.00625, 0.000000001),
+      );
+      await loaded.ad!.dispose();
+      await adapter.dispose();
+    },
+  );
 
   test('auction forwards zero revenue without applying a fallback', () async {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -271,7 +277,7 @@ void main() {
       onBidStart: (admob, tradplus) {
         didStart = true;
         expect(admob.price, 0);
-        expect(tradplus.price, 4);
+        expect(tradplus.price, closeTo(0.004, 0.000000001));
       },
       onBidOver: (winnerInfo) => callbackWinner = winnerInfo,
     );
@@ -281,6 +287,104 @@ void main() {
     expect(callbackWinner, same(admobInfo));
     await loaded.ad!.dispose();
     await adapter.dispose();
+  });
+
+  test('enables automatic-load callbacks for every ad type', () async {
+    final cases =
+        <
+          ({
+            String adType,
+            String loadMethod,
+            String loadedMethod,
+            String optionKey,
+          })
+        >[
+          (
+            adType: 'open',
+            loadMethod: 'splash_load',
+            loadedMethod: 'splash_loaded',
+            optionKey: TradplusAdOptions.splashExtraMap,
+          ),
+          (
+            adType: 'int',
+            loadMethod: 'interstitial_load',
+            loadedMethod: 'interstitial_loaded',
+            optionKey: TradplusAdOptions.interstitialExtraMap,
+          ),
+          (
+            adType: 'rv',
+            loadMethod: 'rewardVideo_load',
+            loadedMethod: 'rewardVideo_loaded',
+            optionKey: TradplusAdOptions.rewardedExtraMap,
+          ),
+          (
+            adType: 'ban',
+            loadMethod: 'banner_load',
+            loadedMethod: 'banner_loaded',
+            optionKey: TradplusAdOptions.bannerExtraMap,
+          ),
+          (
+            adType: 'nat',
+            loadMethod: 'native_load',
+            loadedMethod: 'native_loaded',
+            optionKey: TradplusAdOptions.nativeExtraMap,
+          ),
+        ];
+
+    for (final adCase in cases) {
+      final adUnitId = '${adCase.adType}-unit';
+      Map<dynamic, dynamic>? receivedExtraMap;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(tp.TradplusSdk.channel, (call) async {
+            if (call.method == adCase.loadMethod) {
+              final arguments = call.arguments as Map<dynamic, dynamic>;
+              receivedExtraMap = Map<dynamic, dynamic>.from(
+                arguments['extraMap'] as Map,
+              );
+              scheduleMicrotask(
+                () => tp.TPListenerManager.tpMethodCall(
+                  adCase.loadedMethod,
+                  <String, dynamic>{
+                    'adUnitID': adUnitId,
+                    'adInfo': <String, dynamic>{},
+                  },
+                ),
+              );
+            }
+            return null;
+          });
+
+      final adapter = FlutterBoomPdfAdTradplusAdapter();
+      final loaded = await adapter.load(
+        core.AdLoadRequest(
+          placement: 'home',
+          info: core.AdInfoBean(
+            adId: adUnitId,
+            adPlat: 'tradplus',
+            adType: adCase.adType,
+          ),
+          interstitialLikeNative: false,
+          smallTemplateNative: false,
+          largeBanner: false,
+          networkOptions: <String, Object?>{
+            adCase.optionKey: <String, Object?>{
+              'customOption': 'kept',
+              'openAutoLoadCallback': false,
+            },
+          },
+        ),
+      );
+
+      expect(loaded.ad, isNotNull, reason: adCase.adType);
+      expect(receivedExtraMap?['customOption'], 'kept', reason: adCase.adType);
+      expect(
+        receivedExtraMap?['openAutoLoadCallback'],
+        isTrue,
+        reason: adCase.adType,
+      );
+      await loaded.ad!.dispose();
+      await adapter.dispose();
+    }
   });
 }
 

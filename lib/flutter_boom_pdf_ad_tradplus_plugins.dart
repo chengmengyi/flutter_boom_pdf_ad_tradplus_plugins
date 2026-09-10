@@ -17,8 +17,19 @@ class FlutterBoomPdfAdTradplusPlugins {
 
   /// [appId] may be supplied here or through
   /// `core.configureNetwork('tradplus', options: {'appId': '...'})`.
-  static void install({String? appId, core.FlutterBoomPdfAdCorePlugins? into}) {
+  ///
+  /// [smallNativeAdLayoutName] is the Android XML layout used only by
+  /// TradPlus small native ads. It must contain TradPlus IDs such as
+  /// `tp_native_title`, `tp_native_text`, `tp_native_cta_btn`,
+  /// `tp_native_icon_image`, and `tp_ad_choices_container`. AdMob native XML
+  /// uses different IDs and cannot be reused here.
+  static void install({
+    String? appId,
+    String? smallNativeAdLayoutName,
+    core.FlutterBoomPdfAdCorePlugins? into,
+  }) {
     adapter.setAppId(appId);
+    adapter.setSmallNativeAdLayoutName(smallNativeAdLayoutName);
     (into ?? core.FlutterBoomPdfAdCorePlugins.instance).registerAdapter(
       adapter,
     );
@@ -114,6 +125,7 @@ class FlutterBoomPdfAdTradplusAdapter extends core.FlutterBoomPdfAdAdapter {
   final Map<String, _TradplusSlot> _slots = <String, _TradplusSlot>{};
 
   String? _installedAppId;
+  String? _smallNativeAdLayoutName;
   bool _initialized = false;
   Future<void>? _initializing;
 
@@ -125,6 +137,13 @@ class FlutterBoomPdfAdTradplusAdapter extends core.FlutterBoomPdfAdAdapter {
     if (normalized != null && normalized.isNotEmpty) {
       _installedAppId = normalized;
     }
+  }
+
+  void setSmallNativeAdLayoutName(String? layoutName) {
+    final normalized = layoutName?.trim();
+    _smallNativeAdLayoutName = normalized == null || normalized.isEmpty
+        ? null
+        : normalized;
   }
 
   @override
@@ -284,28 +303,28 @@ class FlutterBoomPdfAdTradplusAdapter extends core.FlutterBoomPdfAdAdapter {
       case core.AdType.appOpen:
         return tp.TPSplashManager.loadSplashAd(
           adUnitId,
-          extraMap: _map(
+          extraMap: _withAutoLoadCallback(
             request.networkOptions[TradplusAdOptions.splashExtraMap],
           ),
         );
       case core.AdType.interstitial:
         return tp.TPInterstitialManager.loadInterstitialAd(
           adUnitId,
-          extraMap: _map(
+          extraMap: _withAutoLoadCallback(
             request.networkOptions[TradplusAdOptions.interstitialExtraMap],
           ),
         );
       case core.AdType.rewarded:
         return tp.TPRewardVideoManager.loadRewardVideoAd(
           adUnitId,
-          extraMap: _map(
+          extraMap: _withAutoLoadCallback(
             request.networkOptions[TradplusAdOptions.rewardedExtraMap],
           ),
         );
       case core.AdType.banner:
         return tp.TPBannerManager.loadBannerAd(
           adUnitId,
-          extraMap: _map(
+          extraMap: _withAutoLoadCallback(
             request.networkOptions[TradplusAdOptions.bannerExtraMap],
           ),
         );
@@ -327,12 +346,13 @@ class FlutterBoomPdfAdTradplusAdapter extends core.FlutterBoomPdfAdAdapter {
         final configured = _map(
           request.networkOptions[TradplusAdOptions.nativeExtraMap],
         );
-        final extra =
+        final baseExtra =
             configured ??
             tp.TPNativeManager.createNativeExtraMap(
               templateWidth: width,
               templateHeight: height,
             );
+        final extra = _withAutoLoadCallback(baseExtra);
         return tp.TPNativeManager.loadNativeAd(adUnitId, extraMap: extra);
     }
   }
@@ -476,6 +496,7 @@ class FlutterBoomPdfAdTradplusAdapter extends core.FlutterBoomPdfAdAdapter {
     final ad = _TradplusLoadedAd(
       slot: slot,
       request: request,
+      smallNativeAdLayoutName: _smallNativeAdLayoutName,
       initialAdInfo: Map<dynamic, dynamic>.from(adInfo),
     );
     slot
@@ -527,11 +548,13 @@ class _TradplusLoadedAd
   _TradplusLoadedAd({
     required this.slot,
     required this.request,
+    required this.smallNativeAdLayoutName,
     required Map<dynamic, dynamic> initialAdInfo,
   }) : _adInfo = initialAdInfo;
 
   final _TradplusSlot slot;
   final core.AdLoadRequest request;
+  final String? smallNativeAdLayoutName;
   final _TradplusEventEmitter _events = _TradplusEventEmitter();
   Map<dynamic, dynamic> _adInfo;
   Completer<core.AdShowResult>? _showCompleter;
@@ -630,7 +653,7 @@ class _TradplusLoadedAd
           slot.adUnitId,
         );
     if (price == null || !price.isFinite || price < 0) return null;
-    return price;
+    return price / 1000;
   }
 
   @override
@@ -659,7 +682,8 @@ class _TradplusLoadedAd
         final className = request.interstitialLikeNative
             ? _string(options[TradplusAdOptions.fullScreenNativeClassName])
             : request.smallTemplateNative
-            ? _string(options[TradplusAdOptions.smallNativeClassName])
+            ? _string(options[TradplusAdOptions.smallNativeClassName]) ??
+                  smallNativeAdLayoutName
             : _string(options[TradplusAdOptions.nativeClassName]);
         return tp.TPNativeViewWidget(
           slot.adUnitId,
@@ -974,6 +998,9 @@ Duration _duration(Object? value, Duration fallback) {
 
 Map<dynamic, dynamic>? _map(Object? value) =>
     value is Map ? Map<dynamic, dynamic>.from(value) : null;
+
+Map<dynamic, dynamic> _withAutoLoadCallback(Object? value) =>
+    <dynamic, dynamic>{...?_map(value), 'openAutoLoadCallback': true};
 
 String? _string(Object? value) {
   if (value == null) return null;

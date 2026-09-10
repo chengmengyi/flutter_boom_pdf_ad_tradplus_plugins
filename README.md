@@ -16,6 +16,7 @@ import 'package:flutter_boom_pdf_ad_tradplus_plugins/flutter_boom_pdf_ad_tradplu
 Future<void> initializeAds() async {
   FlutterBoomPdfAdTradplusPlugins.install(
     appId: 'YOUR_TRADPLUS_APP_ID',
+    smallNativeAdLayoutName: 'tradplus_small_native_ad',
   );
 
   await FlutterPdfAdPlugins.instance.initPlugins(
@@ -74,6 +75,11 @@ Supported Core types:
 Android splash is a platform view, so `showCachedAd` requires a mounted
 `BuildContext`. iOS splash uses TradPlus's full-screen show API.
 
+`smallNativeAdLayoutName` is a TradPlus-only Android XML layout. At minimum it
+must define `tp_native_title`, `tp_native_text`, `tp_native_cta_btn`,
+`tp_native_icon_image`, and `tp_ad_choices_container`. AdMob native layouts
+cannot be reused because their required view IDs are different.
+
 ## TradPlus options
 
 Use `configureNetwork('tradplus', options: ...)` before initialization. The
@@ -105,6 +111,10 @@ FlutterPdfAdPlugins.instance.configureNetwork(
 `adInfo.ecpm` received at impression time is converted into Core's paid event.
 Set `TradplusAdOptions.emitPaidEventFromEcpm` to `false` if revenue is reported
 through another channel.
+
+The estimated price returned for cache auctioning is eCPM. The adapter divides
+it by `1000` before assigning it to `AdInfoBean.price`, so it uses the same
+per-impression comparison unit as AdMob.
 
 ## Native SDK dependencies
 
