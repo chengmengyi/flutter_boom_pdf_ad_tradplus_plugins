@@ -386,6 +386,48 @@ void main() {
       await adapter.dispose();
     }
   });
+
+  test(
+    'recovers a loaded splash when the native loaded callback is lost',
+    () async {
+      var readyChecks = 0;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(tp.TradplusSdk.channel, (call) async {
+            switch (call.method) {
+              case 'splash_load':
+                return null;
+              case 'splash_ready':
+                readyChecks++;
+                return true;
+            }
+            return null;
+          });
+
+      final adapter = FlutterBoomPdfAdTradplusAdapter();
+      final loaded = await adapter.load(
+        core.AdLoadRequest(
+          placement: 'launch',
+          info: core.AdInfoBean(
+            adId: 'splash-unit',
+            adPlat: 'tradplus',
+            adType: 'open',
+          ),
+          interstitialLikeNative: false,
+          smallTemplateNative: false,
+          largeBanner: false,
+          networkOptions: const <String, Object?>{
+            TradplusAdOptions.loadTimeout: 2,
+          },
+        ),
+      );
+
+      expect(readyChecks, greaterThan(0));
+      expect(loaded.ad, isNotNull);
+      expect(loaded.ad!.networkId, 'tradplus');
+      await loaded.ad!.dispose();
+      await adapter.dispose();
+    },
+  );
 }
 
 core.AdLoadRequest _request({required String adUnitId}) {

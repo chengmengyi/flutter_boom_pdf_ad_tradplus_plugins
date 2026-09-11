@@ -278,20 +278,64 @@ class FlutterBoomPdfAdTradplusAdapter extends core.FlutterBoomPdfAdAdapter {
       );
     }
 
-    return completer.future.timeout(
-      _duration(
-        request.networkOptions[TradplusAdOptions.loadTimeout],
-        const Duration(seconds: 30),
-      ),
-      onTimeout: () {
-        if (identical(slot.pendingLoad, completer)) slot.clearPending();
-        return const core.AdLoadResult.failure(
-          'load-timeout',
-          adNetwork: 'TradPlus',
-          adSourceName: 'TradPlus',
-        );
-      },
-    );
+    var checkingReady = false;
+    final readyPoll = Timer.periodic(const Duration(milliseconds: 500), (_) {
+      if (checkingReady ||
+          completer.isCompleted ||
+          !identical(slot.pendingLoad, completer)) {
+        return;
+      }
+      checkingReady = true;
+      unawaited(() async {
+        try {
+          if (await _isReady(adType, adUnitId) &&
+              !completer.isCompleted &&
+              identical(slot.pendingLoad, completer)) {
+            debugPrint(
+              '[FlutterBoomPdfAdTradplus] recover loaded ad from native ready '
+              'type=${adType.name} adUnitId=$adUnitId',
+            );
+            _loaded(slot, const <dynamic, dynamic>{});
+          }
+        } catch (_) {
+          // The normal TradPlus callbacks remain the primary load result.
+        } finally {
+          checkingReady = false;
+        }
+      }());
+    });
+
+    return completer.future
+        .timeout(
+          _duration(
+            request.networkOptions[TradplusAdOptions.loadTimeout],
+            const Duration(seconds: 30),
+          ),
+          onTimeout: () {
+            if (identical(slot.pendingLoad, completer)) slot.clearPending();
+            return const core.AdLoadResult.failure(
+              'load-timeout',
+              adNetwork: 'TradPlus',
+              adSourceName: 'TradPlus',
+            );
+          },
+        )
+        .whenComplete(readyPoll.cancel);
+  }
+
+  Future<bool> _isReady(core.AdType adType, String adUnitId) {
+    switch (adType) {
+      case core.AdType.appOpen:
+        return tp.TPSplashManager.splashAdReady(adUnitId);
+      case core.AdType.interstitial:
+        return tp.TPInterstitialManager.interstitialAdReady(adUnitId);
+      case core.AdType.rewarded:
+        return tp.TPRewardVideoManager.rewardVideoAdReady(adUnitId);
+      case core.AdType.banner:
+        return tp.TPBannerManager.bannerAdReady(adUnitId);
+      case core.AdType.native:
+        return tp.TPNativeManager.nativeAdReady(adUnitId);
+    }
   }
 
   Future<void> _startLoad(
