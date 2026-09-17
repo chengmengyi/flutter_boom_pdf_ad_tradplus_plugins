@@ -1,6 +1,6 @@
 name: flutter_boom_pdf_ad_tradplus_plugins
 description: "TradPlus adapter for flutter_boom_pdf_ad_core_plugins."
-version: 0.0.1
+version: 0.0.2
 homepage: https://github.com/chengmengyi/flutter_boom_pdf_ad_tradplus_plugins
 
 environment:

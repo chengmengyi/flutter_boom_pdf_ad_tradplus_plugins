@@ -38,8 +38,8 @@ class FlutterBoomPdfAdTradplusPlugins {
   Future<String?> getPlatformVersion() =>
       FlutterBoomPdfAdTradplusPluginsPlatform.instance.getPlatformVersion();
 
-  /// [admobPrice] has already been normalized by the AdMob adapter and is
-  /// forwarded unchanged to `TPOutcome.isTPW`.
+  /// [admobPrice] is the AdMob eCPM expected by `TPOutcome.isTPW` and is
+  /// forwarded unchanged across the platform channel.
   static Future<bool?> isTradplusWinner({
     required double admobPrice,
     required Map<dynamic, dynamic> tpAdInfo,
@@ -669,8 +669,9 @@ class _TradplusLoadedAd
       onBidStart?.call(competitorInfo, tradplusInfo);
     }
     try {
+      final competitorEcpm = competitorRevenueMicros * 1000;
       final tpWins = await FlutterBoomPdfAdTradplusPlugins.isTradplusWinner(
-        admobPrice: competitorRevenueMicros,
+        admobPrice: competitorEcpm,
         tpAdInfo: _adInfo,
       );
       if (tpWins == true) {

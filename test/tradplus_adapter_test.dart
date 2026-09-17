@@ -173,7 +173,7 @@ void main() {
 
     expect(
       await candidate.winsAgainst(
-        competitorRevenueMicros: 2.5,
+        competitorRevenueMicros: 0.0025,
         competitorInfo: competitor,
         candidateInfo: tradplusInfo,
         onBidStart: (admobInfo, tpInfo) =>
@@ -183,9 +183,12 @@ void main() {
       ),
       isTrue,
     );
-    expect(competitor.price, 2.5);
+    expect(competitor.price, 0.0025);
     expect(tradplusInfo.price, closeTo(0.00325, 0.000000001));
-    expect(callbacks, <String>['start:2.5:0.00325', 'over:tradplus:0.00325']);
+    expect(callbacks, <String>[
+      'start:0.0025:0.00325',
+      'over:tradplus:0.00325',
+    ]);
     await loaded.ad!.dispose();
     await adapter.dispose();
   });

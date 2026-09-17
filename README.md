@@ -116,6 +116,10 @@ The estimated price returned for cache auctioning is eCPM. The adapter divides
 it by `1000` before assigning it to `AdInfoBean.price`, so it uses the same
 per-impression comparison unit as AdMob.
 
+When comparing against AdMob, `winsAgainst` keeps the per-impression value in
+`AdInfoBean.price` and the bid callbacks, but multiplies it by `1000` before
+passing it as the AdMob eCPM to `TPOutcome.isTPW`.
+
 ## Native SDK dependencies
 
 `tradplus_sdk` contains the Flutter bridge. This adapter includes the TradPlus
