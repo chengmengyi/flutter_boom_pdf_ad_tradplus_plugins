@@ -12,7 +12,7 @@ dependencies:
     sdk: flutter
   flutter_boom_pdf_ad_core_plugins: 0.0.2
   plugin_platform_interface: ^2.0.2
-  tradplus_sdk: ^1.2.8
+  tradplus_sdk: 1.2.8
 
 dev_dependencies:
   flutter_test:
