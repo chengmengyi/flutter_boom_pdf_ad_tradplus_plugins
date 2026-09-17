@@ -59,7 +59,10 @@ void main() {
                   'interstitial_loaded',
                   <String, dynamic>{
                     'adUnitID': 'unit-id',
-                    'adInfo': <String, dynamic>{'networkName': 'Test network'},
+                    'adInfo': <String, dynamic>{
+                      'adSourceName': 'Adx',
+                      'networkName': 'Test network',
+                    },
                   },
                 ),
               );
@@ -72,6 +75,7 @@ void main() {
                   <String, dynamic>{
                     'adUnitID': 'unit-id',
                     'adInfo': <String, dynamic>{
+                      'adSourceName': 'Adx',
                       'networkName': 'Test network',
                       'ecpm': '2.5',
                     },
@@ -81,7 +85,10 @@ void main() {
                   'interstitial_closed',
                   <String, dynamic>{
                     'adUnitID': 'unit-id',
-                    'adInfo': <String, dynamic>{'networkName': 'Test network'},
+                    'adInfo': <String, dynamic>{
+                      'adSourceName': 'Adx',
+                      'networkName': 'Test network',
+                    },
                   },
                 );
               });
@@ -93,7 +100,8 @@ void main() {
     await adapter.initialize();
     final loaded = await adapter.load(_request(adUnitId: 'unit-id'));
     expect(loaded.ad, isNotNull);
-    expect(loaded.ad!.adNetwork, 'Test network');
+    expect(loaded.ad!.adNetwork, 'Adx');
+    expect(loaded.ad!.adSourceName, 'Adx');
 
     final events = <core.AdNetworkEvent>[];
     final subscription = loaded.ad!.events.listen(events.add);

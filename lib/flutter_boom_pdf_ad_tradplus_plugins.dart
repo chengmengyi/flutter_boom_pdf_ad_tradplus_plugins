@@ -615,9 +615,9 @@ class _TradplusLoadedAd
   @override
   String get adNetwork =>
       _firstString(_adInfo, const <String>[
+        'adSourceName',
         'networkName',
         'adNetworkName',
-        'networkId',
       ]) ??
       'TradPlus';
 
